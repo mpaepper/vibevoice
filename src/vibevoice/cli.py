@@ -9,6 +9,8 @@ import numpy as np
 import requests
 import sys
 import base64
+import threading
+import tempfile
 
 try:
     from openai import OpenAI
@@ -180,18 +182,93 @@ def main():
 
     recording = False
     audio_data = []
+    last_typed_text = ""
     sample_rate = 16000
     keyboard_controller = KeyboardController()
+    text_lock = threading.Lock()
+
+    def update_text(new_text, final=False):
+        nonlocal last_typed_text
+        if new_text is None:
+            return
+
+        with text_lock:
+            # If we are not doing a final update and recording has stopped,
+            # abort to avoid overwriting the final result with a partial one.
+            if not final and not recording:
+                return
+
+            # Calculate common prefix
+            common_len = 0
+            min_len = min(len(last_typed_text), len(new_text))
+            for i in range(min_len):
+                if last_typed_text[i] == new_text[i]:
+                    common_len += 1
+                else:
+                    break
+
+            backspaces = len(last_typed_text) - common_len
+            to_type = new_text[common_len:]
+
+            if backspaces > 0:
+                for _ in range(backspaces):
+                    keyboard_controller.press(Key.backspace)
+                    keyboard_controller.release(Key.backspace)
+
+            if to_type:
+                keyboard_controller.type(to_type)
+
+            last_typed_text = new_text
+
+    def streaming_worker():
+        nonlocal recording, audio_data
+
+        while recording:
+            time.sleep(0.8)
+            if not recording:
+                break
+
+            try:
+                # We need at least some audio to transcribe
+                if not audio_data:
+                    continue
+
+                # Use slice copy to be thread-safe
+                current_audio = np.concatenate(audio_data[:], axis=0)
+
+                # Skip if audio is too short (less than 0.5s)
+                if len(current_audio) < sample_rate * 0.5:
+                    continue
+
+                # Save temp file
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_wav:
+                    temp_wav_path = temp_wav.name
+
+                audio_data_int16 = (current_audio * np.iinfo(np.int16).max).astype(np.int16)
+                wavfile.write(temp_wav_path, sample_rate, audio_data_int16)
+
+                transcript = transcribe_with_voxtral(temp_wav_path)
+                os.remove(temp_wav_path)
+
+                if transcript:
+                    update_text(transcript, final=False)
+
+            except Exception as e:
+                print(f"Error in streaming worker: {e}")
 
     def on_press(key):
-        nonlocal recording, audio_data
+        nonlocal recording, audio_data, last_typed_text
         if key == RECORD_KEY or key == CMD_KEY and not recording:
             recording = True
             audio_data = []
+            last_typed_text = ""
             print("Listening...")
 
+            if transcription_backend == 'voxtral' and key == RECORD_KEY:
+                threading.Thread(target=streaming_worker, daemon=True).start()
+
     def on_release(key):
-        nonlocal recording, audio_data
+        nonlocal recording, audio_data, last_typed_text
         if key == RECORD_KEY or key == CMD_KEY:
             recording = False
             print("Transcribing...")
@@ -219,9 +296,14 @@ def main():
                     transcript = response.json()['text']
                 
                 if transcript and key == RECORD_KEY:
-                    processed_transcript = transcript + " "
-                    print(processed_transcript)
-                    keyboard_controller.type(processed_transcript)
+                    if transcription_backend == 'voxtral':
+                        # For Voxtral, we might have already typed some text, so we update it
+                        # Adding a trailing space as per original behavior
+                        update_text(transcript + " ", final=True)
+                    else:
+                        processed_transcript = transcript + " "
+                        print(processed_transcript)
+                        keyboard_controller.type(processed_transcript)
                 elif transcript and key == CMD_KEY:
                     _process_llm_cmd(keyboard_controller, transcript)
             except requests.exceptions.RequestException as e:
