@@ -10,6 +10,11 @@ import requests
 import sys
 import base64
 
+try:
+    from openai import OpenAI
+except ImportError:
+    print("OpenAI library not found. Voxtral backend will not work. Install with: pip install openai")
+
 SCREENSHOT_AVAILABLE = False
 try:
     import pyautogui
@@ -144,6 +149,25 @@ Your responses will be directly typed into the user's keyboard at their cursor p
     finally:
         loading_indicator.hide()
 
+def transcribe_with_voxtral(file_path):
+    """Transcribe audio using Voxtral Realtime model via OpenAI-compatible API."""
+    try:
+        base_url = os.getenv('VOXTRAL_URL', 'http://localhost:8000/v1')
+        model = os.getenv('VOXTRAL_MODEL', 'mistralai/Voxtral-Mini-4B-Realtime-2602')
+        api_key = os.getenv('VOXTRAL_API_KEY', 'sk-no-key-required')
+
+        client = OpenAI(base_url=base_url, api_key=api_key)
+
+        with open(file_path, "rb") as audio_file:
+            response = client.audio.transcriptions.create(
+                model=model,
+                file=audio_file
+            )
+        return response.text
+    except Exception as e:
+        print(f"Error transcribing with Voxtral: {e}")
+        return None
+
 def main():
     load_dotenv()
     key_label = os.environ.get("VOICEKEY", "ctrl_r")
@@ -151,6 +175,8 @@ def main():
     RECORD_KEY = Key[key_label]
     CMD_KEY = Key[cmd_label]
 #    CMD_KEY = KeyCode(vk=65027)  # This is how you can use non-standard keys, this is AltGr for me
+
+    transcription_backend = os.getenv('TRANSCRIPTION_BACKEND', 'whisper').lower()
 
     recording = False
     audio_data = []
@@ -181,10 +207,16 @@ def main():
             wavfile.write(recording_path, sample_rate, audio_data_int16)
 
             try:
-                response = requests.post('http://localhost:4242/transcribe/', 
-                                      json={'file_path': recording_path})
-                response.raise_for_status()
-                transcript = response.json()['text']
+                transcript = None
+
+                if transcription_backend == 'voxtral':
+                    transcript = transcribe_with_voxtral(recording_path)
+                else:
+                    # Default to local whisper server
+                    response = requests.post('http://localhost:4242/transcribe/',
+                                          json={'file_path': recording_path})
+                    response.raise_for_status()
+                    transcript = response.json()['text']
                 
                 if transcript and key == RECORD_KEY:
                     processed_transcript = transcript + " "
@@ -203,23 +235,30 @@ def main():
         if recording:
             audio_data.append(indata.copy())
 
-    server_process = start_whisper_server()
-    
+    server_process = None
+    if transcription_backend == 'whisper':
+        server_process = start_whisper_server()
+        try:
+            print(f"Waiting for the server to be ready...")
+            wait_for_server()
+        except TimeoutError as e:
+            print(f"Error: {e}")
+            if server_process:
+                server_process.terminate()
+            sys.exit(1)
+    elif transcription_backend == 'voxtral':
+        print("Using Voxtral backend. Make sure the Voxtral server is running (e.g. vLLM).")
+
     try:
-        print(f"Waiting for the server to be ready...")
-        wait_for_server()
         print(f"vibevoice is active. Hold down {key_label} to start dictating.")
         with Listener(on_press=on_press, on_release=on_release) as listener:
             with sd.InputStream(callback=callback, channels=1, samplerate=sample_rate):
                 listener.join()
-    except TimeoutError as e:
-        print(f"Error: {e}")
-        server_process.terminate()
-        sys.exit(1)
     except KeyboardInterrupt:
         print("\nStopping...")
     finally:
-        server_process.terminate()
+        if server_process:
+            server_process.terminate()
 
 if __name__ == "__main__":
     main()
