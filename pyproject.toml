@@ -24,7 +24,13 @@ dependencies = [
     "numpy>=1.26.0",
     "requests==2.32.3",
     "pynput==1.7.8",
-    "scipy==1.16.1"
+    "scipy==1.16.1",
+    "pyautogui==0.9.54",
+    "Pillow==11.1.0",
+    "openai>=1.0.0",
+    "soundfile",
+    "librosa",
+    "soxr"
 ]
 
 [project.scripts]

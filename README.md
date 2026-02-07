@@ -128,6 +128,14 @@ To use the screenshot functionality:
 sudo apt install gnome-screenshot
 ```
 
+#### Transcription Backend
+- `TRANSCRIPTION_BACKEND`: Choose between `whisper` (default) and `voxtral`.
+  ```bash
+  export TRANSCRIPTION_BACKEND="voxtral"
+  ```
+- `VOXTRAL_URL`: Set the Voxtral API URL (default: "http://localhost:8000/v1")
+- `VOXTRAL_MODEL`: Set the Voxtral model name (default: "mistralai/Voxtral-Mini-4B-Realtime-2602")
+
 ## Usage Modes 💡
 
 VibeVoice supports two modes:
@@ -143,6 +151,37 @@ VibeVoice supports two modes:
 2. Ask a question or give a command
 3. Release the key
 4. The AI will analyze your request (and current screen if enabled) and type a response
+
+## Voxtral Realtime Support 🎙️
+
+You can use the new Mistral Voxtral real-time model instead of the local Whisper model.
+
+### Setup Instructions
+
+1.  **Install vLLM (nightly version):**
+    ```bash
+    uv pip install -U vllm --torch-backend=auto --extra-index-url https://wheels.vllm.ai/nightly
+    ```
+    Ensure `mistral_common >= 1.9.0` is installed.
+
+2.  **Start the model via vLLM:**
+    ```bash
+    vllm serve mistralai/Voxtral-Mini-4B-Realtime-2602 --host 0.0.0.0 --port 8000
+    ```
+    *Note: The model requires a GPU with at least 16 GB VRAM.*
+
+3.  **Run VibeVoice with Voxtral backend:**
+    ```bash
+    export TRANSCRIPTION_BACKEND="voxtral"
+    python src/vibevoice/cli.py
+    ```
+
+### Optional Optimizations
+Install additional audio libraries for better performance:
+```bash
+pip install soxr librosa soundfile
+```
+(Note: `soundfile`, `librosa`, and `soxr` are already included in `requirements.txt`)
 
 ## Credits 🙏
 
