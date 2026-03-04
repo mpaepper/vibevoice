@@ -9,6 +9,7 @@ import numpy as np
 import requests
 import sys
 import base64
+import re
 
 SCREENSHOT_AVAILABLE = False
 try:
@@ -24,6 +25,7 @@ from scipy.io import wavfile
 from dotenv import load_dotenv
 
 from loading_indicator import LoadingIndicator
+from todo_manager import TodoManager
 
 loading_indicator = LoadingIndicator()
 
@@ -144,13 +146,71 @@ Your responses will be directly typed into the user's keyboard at their cursor p
     finally:
         loading_indicator.hide()
 
+def _process_todo_cmd(todo_manager, transcript):
+    """Process transcript with Ollama to update the to-do list."""
+    try:
+        loading_indicator.show(message=f"Updating To-Dos: {transcript}")
+        old_content = todo_manager.read_todos()
+        
+        model = os.getenv('OLLAMA_MODEL', 'gemma3:27b')
+        
+        system_prompt = f"""You are a to-do list assistant. You manage a markdown to-do list.
+The current to-do list is provided below.
+The user will give you a voice command to add, complete, remove, or refine a to-do.
+You MUST respond with the ENTIRE updated markdown content and NOTHING ELSE.
+Do not include any conversational text, explanations, or markdown code blocks (no ```).
+Maintain the structure:
+# To-Do List
+
+- [ ] Task description (Priority: High/Medium/Low)
+- [x] Completed task
+
+Ensure priorities are mentioned if the user implies them.
+Current list:
+{old_content}"""
+
+        url = "http://localhost:11434/api/generate"
+        payload = {
+            "model": model,
+            "prompt": transcript,
+            "system": system_prompt,
+            "stream": False
+        }
+        
+        response = requests.post(url, json=payload)
+        response.raise_for_status()
+        updated_content = response.json()['response'].strip()
+        
+        # Remove markdown code block markers if the LLM included them despite instructions
+        updated_content = re.sub(r'^```markdown\n', '', updated_content)
+        updated_content = re.sub(r'^```\n', '', updated_content)
+        updated_content = re.sub(r'\n```$', '', updated_content)
+        
+        if "# To-Do List" in updated_content:
+            todo_manager.show_diff(old_content, updated_content)
+            todo_manager.write_todos(updated_content)
+            todo_manager.display_todos()
+        else:
+            print("Error: LLM returned invalid markdown format.")
+            print("Response was:", updated_content)
+            
+    except Exception as e:
+        print(f"Error updating to-dos: {e}")
+    finally:
+        loading_indicator.hide()
+
 def main():
     load_dotenv()
     key_label = os.environ.get("VOICEKEY", "ctrl_r")
     cmd_label = os.environ.get("VOICEKEY_CMD", "scroll_lock")
-    RECORD_KEY = Key[key_label]
-    CMD_KEY = Key[cmd_label]
-#    CMD_KEY = KeyCode(vk=65027)  # This is how you can use non-standard keys, this is AltGr for me
+    todo_label = os.environ.get("VOICEKEY_TODO", "pause")
+    
+    RECORD_KEY = getattr(Key, key_label, None) or KeyCode.from_char(key_label)
+    CMD_KEY = getattr(Key, cmd_label, None) or KeyCode.from_char(cmd_label)
+    TODO_KEY = getattr(Key, todo_label, None) or KeyCode.from_char(todo_label)
+    
+    todo_manager = TodoManager()
+    todo_manager.display_todos()
 
     recording = False
     audio_data = []
@@ -159,14 +219,14 @@ def main():
 
     def on_press(key):
         nonlocal recording, audio_data
-        if key == RECORD_KEY or key == CMD_KEY and not recording:
+        if (key == RECORD_KEY or key == CMD_KEY or key == TODO_KEY) and not recording:
             recording = True
             audio_data = []
             print("Listening...")
 
     def on_release(key):
         nonlocal recording, audio_data
-        if key == RECORD_KEY or key == CMD_KEY:
+        if key == RECORD_KEY or key == CMD_KEY or key == TODO_KEY:
             recording = False
             print("Transcribing...")
             
@@ -192,6 +252,8 @@ def main():
                     keyboard_controller.type(processed_transcript)
                 elif transcript and key == CMD_KEY:
                     _process_llm_cmd(keyboard_controller, transcript)
+                elif transcript and key == TODO_KEY:
+                    _process_todo_cmd(todo_manager, transcript)
             except requests.exceptions.RequestException as e:
                 print(f"Error sending request to local API: {e}")
             except Exception as e:

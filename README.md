@@ -101,11 +101,15 @@ You can customize various aspects of VibeVoice with the following environment va
 #### Keyboard Controls
 - `VOICEKEY`: Change the dictation activation key (default: "ctrl_r")
   ```bash
-  export VOICEKEY="ctrl"  # Use left control instead
+  export VOICEKEY="ctrl_r"
   ```
 - `VOICEKEY_CMD`: Set the key for AI command mode (default: "scroll_lock")
   ```bash
-  export VOICEKEY_CMD="ctsl"  # Use left control instead of Scroll Lock key
+  export VOICEKEY_CMD="scroll_lock"
+  ```
+- `VOICEKEY_TODO`: Set the key for To-Do Assistant mode (default: "pause")
+  ```bash
+  export VOICEKEY_TODO="pause"
   ```
 
 #### AI and Screenshot Features
@@ -130,7 +134,7 @@ sudo apt install gnome-screenshot
 
 ## Usage Modes 💡
 
-VibeVoice supports two modes:
+VibeVoice supports three modes:
 
 ### 1. Dictation Mode
 1. Hold down the dictation key (default: right Control)
@@ -143,6 +147,12 @@ VibeVoice supports two modes:
 2. Ask a question or give a command
 3. Release the key
 4. The AI will analyze your request (and current screen if enabled) and type a response
+
+### 3. To-Do Assistant Mode 📝
+1. Hold down the to-do key (default: Pause)
+2. Say what to add, complete, or change in your to-do list (e.g., "Add buy milk with high priority" or "Mark buy milk as complete")
+3. Release the key
+4. The AI updates your `todos.md` file, shows the changes (diff), and displays the updated list in your terminal!
 
 ## Credits 🙏
 
