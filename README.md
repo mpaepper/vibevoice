@@ -111,6 +111,10 @@ You can customize various aspects of VibeVoice with the following environment va
   ```bash
   export VOICEKEY_TODO="pause"
   ```
+- `TODO_FILE`: Path to your markdown to-do file (default: "~/todos.md")
+  ```bash
+  export TODO_FILE="~/my-tasks.md"
+  ```
 
 #### AI and Screenshot Features
 - `OLLAMA_MODEL`: Specify which Ollama model to use (default: "gemma3:27b")
@@ -150,9 +154,14 @@ VibeVoice supports three modes:
 
 ### 3. To-Do Assistant Mode 📝
 1. Hold down the to-do key (default: Pause)
-2. Say what to add, complete, or change in your to-do list (e.g., "Add buy milk with high priority" or "Mark buy milk as complete")
+2. Say what to add, move, or complete (e.g., "Start working on feature X", "Add fix bug Y to backlog", "Finish task Z")
 3. Release the key
-4. The AI updates your `todos.md` file, shows the changes (diff), and displays the updated list in your terminal!
+4. The AI updates your Kanban board (`todos.md`), shows the changes, and displays your **active focus** at the top!
+
+The board is organized into:
+- **In Progress**: Tasks you are currently focusing on.
+- **Backlog**: Future tasks.
+- **Completed**: Your finished tasks (only shows the 3 most recent).
 
 ## Credits 🙏
 

@@ -149,24 +149,37 @@ Your responses will be directly typed into the user's keyboard at their cursor p
 def _process_todo_cmd(todo_manager, transcript):
     """Process transcript with Ollama to update the to-do list."""
     try:
-        loading_indicator.show(message=f"Updating To-Dos: {transcript}")
+        loading_indicator.show(message=f"Updating Kanban Board: {transcript}")
         old_content = todo_manager.read_todos()
         
         model = os.getenv('OLLAMA_MODEL', 'gemma3:27b')
         
-        system_prompt = f"""You are a to-do list assistant. You manage a markdown to-do list.
-The current to-do list is provided below.
-The user will give you a voice command to add, complete, remove, or refine a to-do.
+        system_prompt = f"""You are a productivity assistant managing a Kanban-style to-do board.
+The current board is provided below.
+The user will give you a voice command to add, move, complete, or refine a task.
+
+Strictly maintain four sections:
+## In Progress
+(For tasks the user is actively focusing on)
+## Waiting
+(For tasks that are blocked, pending, or on hold)
+## Backlog
+(For future tasks)
+## Completed
+(For finished tasks, using - [x])
+
+### RULES:
+1. A task must exist in EXACTLY ONE section. When you move a task, REMOVE it from its previous section.
+2. Task Format: - [ ] Task description (Priority: ...)
+3. When the user says "work on", "start", or "switch to", move the task to '## In Progress' and remove from elsewhere.
+4. When the user says "waiting", "blocked", or "on hold", move it to '## Waiting' and remove from elsewhere.
+5. When the user says "finish", "done", or "complete", move it to '## Completed', mark with [x], and remove from elsewhere.
+6. When a new task is added, put it in '## Backlog' unless specified as current work.
+
 You MUST respond with the ENTIRE updated markdown content and NOTHING ELSE.
-Do not include any conversational text, explanations, or markdown code blocks (no ```).
-Maintain the structure:
-# To-Do List
+No conversational text, no explanations, no markdown code blocks (no ```).
 
-- [ ] Task description (Priority: High/Medium/Low)
-- [x] Completed task
-
-Ensure priorities are mentioned if the user implies them.
-Current list:
+Current board:
 {old_content}"""
 
         url = "http://localhost:11434/api/generate"
@@ -205,11 +218,13 @@ def main():
     cmd_label = os.environ.get("VOICEKEY_CMD", "scroll_lock")
     todo_label = os.environ.get("VOICEKEY_TODO", "pause")
     
+    todo_file_path = os.environ.get("TODO_FILE", "~/todos.md")
+    
     RECORD_KEY = getattr(Key, key_label, None) or KeyCode.from_char(key_label)
     CMD_KEY = getattr(Key, cmd_label, None) or KeyCode.from_char(cmd_label)
     TODO_KEY = getattr(Key, todo_label, None) or KeyCode.from_char(todo_label)
     
-    todo_manager = TodoManager()
+    todo_manager = TodoManager(file_path=todo_file_path)
     todo_manager.display_todos()
 
     recording = False
