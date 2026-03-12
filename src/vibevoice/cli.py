@@ -149,40 +149,40 @@ Your responses will be directly typed into the user's keyboard at their cursor p
         loading_indicator.hide()
 
 def _process_todo_cmd(todo_manager, transcript):
-    """Process transcript with Ollama to update the to-do list."""
+    """Process transcript with Ollama to generate SQLite commands for the to-do list."""
     try:
-        loading_indicator.show(message=f"Updating Kanban Board: {transcript}")
-        old_content = todo_manager.read_todos()
+        loading_indicator.show(message=f"Updating To-Dos: {transcript}")
+        task_summary = todo_manager.get_task_summary()
         
         model = os.getenv('OLLAMA_MODEL', 'gemma3:27b')
         
-        system_prompt = f"""You are a productivity assistant managing a Kanban-style to-do board.
-The current board is provided below.
-The user will give you a voice command to add, move, complete, or refine a task.
+        system_prompt = f"""You are a productivity assistant managing a Kanban-style to-do board stored in an SQLite database.
+The current board's task summary is provided below.
+The user will give you a voice command to add, move, complete, or delete a task.
 
-Strictly maintain four sections:
-## In Progress
-(For tasks the user is actively focusing on)
-## Waiting
-(For tasks that are blocked, pending, or on hold)
-## Backlog
-(For future tasks)
-## Completed
-(For finished tasks, using - [x])
+You MUST respond with one or more comma-separated commands, each on its own line, and NOTHING ELSE.
+No conversational text, no explanations, no markdown code blocks.
 
-### RULES:
-1. A task must exist in EXACTLY ONE section. When you move a task, REMOVE it from its previous section.
-2. Task Format: - [ ] Task description (Priority: ...)
-3. When the user says "work on", "start", or "switch to", move the task to '## In Progress' and remove from elsewhere.
-4. When the user says "waiting", "blocked", or "on hold", move it to '## Waiting' and remove from elsewhere.
-5. When the user says "finish", "done", or "complete", move it to '## Completed', mark with [x], and remove from elsewhere.
-6. When a new task is added, put it in '## Backlog' unless specified as current work.
+AVAILABLE COMMANDS:
+1. ADD,"description","status"
+   - Possible status values: 'Backlog', 'In Progress', 'Waiting', 'Completed'
+   - Default status is 'Backlog' if not specified.
+2. UPDATE,id,"new_status"
+   - Use this to move tasks between sections.
+3. DELETE,id
+   - Use this to remove tasks entirely.
+4. RENAME,id,"new_description"
+   - Use this to fix typos or refine task descriptions.
 
-You MUST respond with the ENTIRE updated markdown content and NOTHING ELSE.
-No conversational text, no explanations, no markdown code blocks (no ```).
+RULES:
+- When the user says "work on", "start", or "switch to", move the task to 'In Progress'.
+- When the user says "waiting", "blocked", or "on hold", move it to 'Waiting'.
+- When the user says "finish", "done", or "complete", move it to 'Completed'.
+- For new tasks, use ADD and put them in 'Backlog' unless specified otherwise.
+- Use the ID from the summary below to reference existing tasks.
 
-Current board:
-{old_content}"""
+Current board summary:
+{task_summary}"""
 
         url = "http://localhost:11434/api/generate"
         payload = {
@@ -195,20 +195,47 @@ Current board:
         
         response = requests.post(url, json=payload)
         response.raise_for_status()
-        updated_content = response.json()['response'].strip()
+        commands_text = response.json()['response'].strip()
         
-        # Remove markdown code block markers if the LLM included them despite instructions
-        updated_content = re.sub(r'^```markdown\n', '', updated_content)
-        updated_content = re.sub(r'^```\n', '', updated_content)
-        updated_content = re.sub(r'\n```$', '', updated_content)
+        # Remove any accidental markdown code blocks
+        commands_text = re.sub(r'```[a-zA-Z]*\n?', '', commands_text)
+        commands_text = re.sub(r'\n?```', '', commands_text)
         
-        if "# To-Do List" in updated_content:
-            todo_manager.show_diff(old_content, updated_content)
-            todo_manager.write_todos(updated_content)
-            todo_manager.display_todos()
-        else:
-            print("Error: LLM returned invalid markdown format.")
-            print("Response was:", updated_content)
+        print(f"\n--- AI Commands ---\n{commands_text}\n------------------")
+        
+        for line in commands_text.splitlines():
+            line = line.strip()
+            if not line or not ("," in line): continue
+            
+            # Simple but more robust CSV-like split
+            parts = []
+            import csv
+            import io
+            reader = csv.reader(io.StringIO(line))
+            try:
+                parts = next(reader)
+            except:
+                continue
+                
+            if not parts: continue
+            cmd = parts[0].upper().strip()
+            
+            if cmd == "ADD" and len(parts) >= 2:
+                status = parts[2].strip() if len(parts) >= 3 else "Backlog"
+                todo_manager.add_task(parts[1].strip(), status=status)
+                print(f"Added: {parts[1].strip()} ({status})")
+            elif cmd == "UPDATE" and len(parts) >= 3:
+                todo_manager.update_task_status(int(parts[1]), parts[2].strip())
+                print(f"Moved ID {parts[1]} to {parts[2].strip()}")
+            elif cmd == "DELETE" and len(parts) >= 2:
+                todo_manager.delete_task(int(parts[1]))
+                print(f"Deleted ID {parts[1]}")
+            elif cmd == "RENAME" and len(parts) >= 3:
+                todo_manager.update_task_description(int(parts[1]), parts[2].strip())
+                print(f"Renamed ID {parts[1]} to {parts[2].strip()}")
+        
+        print("\nUpdating view...")
+        todo_manager.display_todos()
             
     except Exception as e:
         print(f"Error updating to-dos: {e}")
@@ -221,13 +248,13 @@ def main():
     cmd_label = os.environ.get("VOICEKEY_CMD", "scroll_lock")
     todo_label = os.environ.get("VOICEKEY_TODO", "pause")
     
-    todo_file_path = os.environ.get("TODO_FILE", "~/todos.md")
+    todo_db_path = os.environ.get("TODO_DB", "~/todo.db")
     
     RECORD_KEY = getattr(Key, key_label, None) or KeyCode.from_char(key_label)
     CMD_KEY = getattr(Key, cmd_label, None) or KeyCode.from_char(cmd_label)
     TODO_KEY = getattr(Key, todo_label, None) or KeyCode.from_char(todo_label)
     
-    todo_manager = TodoManager(file_path=todo_file_path)
+    todo_manager = TodoManager(db_path=todo_db_path)
     todo_manager.display_todos()
 
     recording = False

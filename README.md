@@ -111,9 +111,9 @@ You can customize various aspects of VibeVoice with the following environment va
   ```bash
   export VOICEKEY_TODO="pause"
   ```
-- `TODO_FILE`: Path to your markdown to-do file (default: "~/todos.md")
+- `TODO_DB`: Path to the SQLite database file (default: "todo.db")
   ```bash
-  export TODO_FILE="~/my-tasks.md"
+  export TODO_DB="~/my-tasks.db"
   ```
 
 #### AI and Screenshot Features
@@ -163,12 +163,13 @@ VibeVoice supports three modes:
 1. Hold down the to-do key (default: Pause)
 2. Say what to add, move, or complete (e.g., "Start working on feature X", "Add fix bug Y to backlog", "Finish task Z")
 3. Release the key
-4. The AI updates your Kanban board (`todos.md`), shows the changes, and displays your **active focus** at the top!
+4. The AI updates your SQLite database (`todo.db`) using efficient commands, shows the actions taken, and displays your **active focus** at the top!
 
 The board is organized into:
 - **In Progress**: Tasks you are currently focusing on.
+- **Waiting**: Tasks that are blocked or on hold.
 - **Backlog**: Future tasks.
-- **Completed**: Your finished tasks (only shows the 3 most recent).
+- **Completed**: Your finished tasks (only shows the 5 most recent).
 
 ## Credits 🙏
 
