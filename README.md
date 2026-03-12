@@ -118,9 +118,16 @@ You can customize various aspects of VibeVoice with the following environment va
 
 #### AI and Screenshot Features
 - `OLLAMA_MODEL`: Specify which Ollama model to use (default: "gemma3:27b")
-  ```bash
-  export OLLAMA_MODEL="gemma3:4b"  # Use a smaller VLM in case you have less GPU RAM
-  ```
+- `WHISPER_MODEL`: Specify which Whisper model to use (e.g., "large-v3", "medium", "small") (default: "large")
+- `WHISPER_DEVICE`: Device to run Whisper on ("cuda" or "cpu") (default: "cuda")
+- `WHISPER_COMPUTE_TYPE`: Compute type for Whisper ("float16", "int8_float16", "int8", etc.) (default: "float16")
+
+Example for lower GPU memory (e.g., 8-12 GB):
+```bash
+export OLLAMA_MODEL="gemma3:4b"
+export WHISPER_MODEL="medium"
+export WHISPER_COMPUTE_TYPE="int8_float16"
+```
 - `INCLUDE_SCREENSHOT`: Enable or disable screenshots in AI command mode (default: "true")
   ```bash
   export INCLUDE_SCREENSHOT="false"  # Disable screenshots (but they are local only anyways)

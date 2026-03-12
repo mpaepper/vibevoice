@@ -108,7 +108,8 @@ Your responses will be directly typed into the user's keyboard at their cursor p
                 "prompt": user_prompt,
                 "system": system_prompt,
                 "stream": True,
-                "images": [screenshot_base64]  # Pass base64 data directly without data URI prefix
+                "images": [screenshot_base64],  # Pass base64 data directly without data URI prefix
+                "keep_alive": 0
             }
             print(f"Sending request with screenshot to model: {model}")
         else:
@@ -117,7 +118,8 @@ Your responses will be directly typed into the user's keyboard at their cursor p
                 "model": model,
                 "prompt": user_prompt,
                 "system": system_prompt,
-                "stream": True
+                "stream": True,
+                "keep_alive": 0
             }
             print(f"Sending text-only request")
         
@@ -187,7 +189,8 @@ Current board:
             "model": model,
             "prompt": transcript,
             "system": system_prompt,
-            "stream": False
+            "stream": False,
+            "keep_alive": 0
         }
         
         response = requests.post(url, json=payload)
