@@ -39,12 +39,36 @@ python src/vibevoice/cli.py
 - Python 3.13 or higher
 
 ### System Requirements
-- CUDA-capable GPU (recommended) -> in server.py you can enable cpu use
-- CUDA 12.x
-- cuBLAS
-- cuDNN 9.x
-- In case you get this error: `OSError: PortAudio library not found` run `sudo apt install libportaudio2`
+- Linux/Windows with NVIDIA GPU: CUDA-capable GPU (recommended), CUDA 12.x, cuBLAS, cuDNN 9.x
+- macOS (Apple Silicon): PyTorch + MPS support (Whisper device is auto-set to `mps`)
+- Audio backend: PortAudio (`sudo apt install libportaudio2` on Linux, `brew install portaudio` on macOS)
 - [Ollama](https://ollama.com) for AI command mode (with multimodal models for screenshot support)
+
+
+### macOS setup (MacBook Air / Apple Silicon)
+
+1. Install PortAudio via Homebrew:
+   ```bash
+   brew install portaudio
+   ```
+2. Install Python deps:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Grant keyboard control permissions for `pynput`:
+   - Open **System Settings -> Privacy & Security -> Accessibility**
+   - Enable access for your terminal app (e.g., Terminal, iTerm, Warp)
+4. Run vibevoice:
+   ```bash
+   python src/vibevoice/cli.py
+   ```
+
+By default, `src/vibevoice/server.py` now auto-selects `mps` on macOS and `cuda` elsewhere. You can always override this with:
+
+```bash
+export WHISPER_DEVICE=cpu
+export WHISPER_COMPUTE_TYPE=int8
+```
 
 #### Setting up Ollama
 1. Install Ollama by following the instructions at [ollama.com](https://ollama.com)
